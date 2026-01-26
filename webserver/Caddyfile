@@ -36,8 +36,9 @@
 	}
 
 	# MCP Server endpoint - proxy to mcp-server
+	# Use path_regexp to match /mcp but NOT /mcpo
 	@mcp_server {
-		path_regexp ^/mcp
+		path_regexp ^/mcp($|/)
 	}
 	handle @mcp_server {
 		reverse_proxy mcp-server:8090 {
