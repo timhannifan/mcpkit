@@ -1,6 +1,10 @@
 # Production configuration for IP-based access (HTTP only)
 # Note: HTTPS requires a domain name for SSL certificates
 :80 {
+	log {
+		output stdout
+		format console
+	}
 	encode gzip
 
 	# Handle CORS preflight requests
@@ -51,8 +55,16 @@
 	}
 
 	# MCPO (MCP-to-OpenAPI proxy) endpoint - proxy to mcpo
-	# handle_path automatically strips /mcpo prefix before forwarding
-	handle_path /mcpo {
+	# Strip /mcpo prefix before forwarding to mcpo (which serves at root /)
+	@mcpo {
+		path /mcpo*
+	}
+	handle @mcpo {
+		# Rewrite: /mcpo -> /, /mcpo/path -> /path
+		rewrite {
+			r ^/mcpo(.*)$
+			to {1}
+		}
 		reverse_proxy mcpo:8000 {
 			header_up Host {host}
 			header_up X-Real-IP {remote}
