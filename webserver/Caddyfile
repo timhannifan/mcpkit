@@ -52,7 +52,7 @@
 
 	# MCPO (MCP-to-OpenAPI proxy) endpoint - proxy to mcpo
 	# handle_path automatically strips /mcpo prefix before forwarding
-	handle_path /mcpo {
+	handle_path /mcpo/* {
 		reverse_proxy mcpo:8000 {
 			header_up Host {host}
 			header_up X-Real-IP {remote}
@@ -65,6 +65,10 @@
 			header_down Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
 			header_down Access-Control-Allow-Credentials "true"
 		}
+	}
+	# Handle /mcpo exactly - redirect to /mcpo/
+	handle /mcpo {
+		redir /mcpo/ permanent
 	}
 
 	# Handle JavaScript files separately to set correct MIME type
