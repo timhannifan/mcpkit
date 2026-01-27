@@ -14,6 +14,14 @@ services:
       WEBUI_AUTH_COOKIE_SECURE: "false"
       MCP_SERVER_URL: "http://mcp-server:8090/mcp"
 
+  neo4j:
+    image: neo4j:latest
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: neo4j/password123
+
   mcp-server:
     build:
       context: ./mcp-server
@@ -23,6 +31,12 @@ services:
     environment:
       MCP_SERVER_HOST: "0.0.0.0"
       MCP_SERVER_PORT: "8090"
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password123
+    depends_on:
+      neo4j:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/8090' || exit 1"]
       interval: 5s

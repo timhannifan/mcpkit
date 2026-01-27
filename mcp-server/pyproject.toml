@@ -1,11 +1,12 @@
 [project]
 name = "openwebui-mcp-server"
 version = "0.1.0"
-description = "Simple MCP server for OpenWebUI with trivial tools"
+description = "MCP server for OpenWebUI with example tools and Neo4j knowledge-graph demo"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=3.0.0b1",
     "uvicorn>=0.27.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "neo4j>=5.0.0",
 ]

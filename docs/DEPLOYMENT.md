@@ -103,6 +103,7 @@ make prod
 **Services running:**
 - OpenWebUI: Main web interface
 - MCP Server: Tool server at port 8090
+- Neo4j: Graph DB for citation demo (bolt 7687)
 - Caddy: Reverse proxy handling HTTP traffic
 
 ### 5. Configure OpenRouter
@@ -146,10 +147,12 @@ To enable MCP tools in OpenWebUI, choose one of the following options:
 7. Tools are now available in chat
 8. Access Swagger docs at `http://YOUR_EC2_IP_ADDRESS/mcpo/docs`
 
-**Note**: 
+**Note**:
 - The MCP server is exposed through Caddy at `/mcp`
 - The mcpo proxy is exposed through Caddy at `/mcpo`
 - Use your EC2 public IP address (not `localhost`, `host.docker.internal`, or direct ports)
+
+Neo4j citation demo tools are available when Neo4j is running and configured; see [Neo4j Citation Demo](NEO4J_DEMO.md) for Quick start, tool list, and env vars.
 
 ## Security Notes
 

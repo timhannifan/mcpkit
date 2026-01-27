@@ -14,7 +14,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 RUN uv sync
 
 # Copy application code
-COPY server.py .
+COPY server.py neo4j_demo.py ./
 
 # Expose MCP server port
 EXPOSE 8090
