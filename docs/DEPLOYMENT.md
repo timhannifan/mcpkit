@@ -23,8 +23,8 @@ Based on container limits: OpenWebUI (1.5 CPU, 1.5GB) + MCP Server (0.5 CPU, 256
 
 ```bash
 # On your server
-git clone <repo-url> openweb
-cd openweb
+git clone <repo-url> mcpkit
+cd mcpkit
 
 # Configure
 cp env.example .env
@@ -176,7 +176,7 @@ Ensure your EC2 security group allows:
 ### Manual Update
 
 ```bash
-cd ~/openweb
+cd ~/mcpkit
 git pull origin main
 docker-compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d --pull always --build
 docker image prune -f
@@ -214,11 +214,11 @@ The workflow will:
 
 ```bash
 # Backup OpenWebUI data
-# Note: Volume name is based on your directory name (e.g., openweb_open-webui-data)
+# Note: Volume name is based on your directory name (e.g., mcpkit_open-webui-data)
 # Check actual volume name with: docker volume ls
 BACKUP_DIR="./backups/$(date +%Y%m%d)"
 mkdir -p "$BACKUP_DIR"
-docker run --rm -v openweb_open-webui-data:/data -v "$BACKUP_DIR":/backup alpine tar czf /backup/openwebui.tar.gz -C /data .
+docker run --rm -v mcpkit_open-webui-data:/data -v "$BACKUP_DIR":/backup alpine tar czf /backup/openwebui.tar.gz -C /data .
 ```
 
 ## Troubleshooting

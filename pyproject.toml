@@ -1,7 +1,7 @@
 [project]
-name = "openweb"
+name = "mcpkit"
 version = "0.1.0"
-description = "OpenWebUI deployment setup with MCP server for EC2"
+description = "MCP toolkit: OpenWebUI, FastMCP, and deployment for EC2"
 requires-python = ">=3.12"
 dependencies = [
     "neo4j>=5.0.0",
