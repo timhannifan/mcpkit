@@ -1,6 +1,6 @@
 # Neo4j Knowledge Graph Demo via MCP
 
-Demonstrates knowledge-graph integration via MCP: the MCP server talks to Neo4j and exposes tools so OpenWebUI chat can query the graph. A standalone script seeds the DB; the server exposes six demo-query tools.
+Demonstrates knowledge-graph integration via MCP: the MCP server talks to Neo4j and exposes a single tool so OpenWebUI chat can query the graph. A standalone script seeds the DB; the server exposes `neo4j_execute_cypher` for dynamic Cypher queries.
 
 ## Why knowledge graphs?
 
@@ -32,49 +32,55 @@ This demo uses a **citation network**: nodes = Papers, Authors, Topics; edges = 
 4. **Edit the chat system prompt**  
    Use the controls in the upper right of the chat to open the system prompt / custom instructions. Paste the [System prompt](#system-prompt) block below.
 
-5. **Use the Neo4j tools in chat**  
-   Enable the MCP tools in Integrations and ask the model (e.g. “Show most cited papers”, “Show co-authorship network”).
+5. **Use the Neo4j tool in chat**  
+   Enable the MCP tool in Integrations and ask the model about the citation graph (e.g. "Find papers by Alice Chen" or "Which papers cite both Modern Graph Neural Networks and PageRank: The Original Algorithm?").
 
 ## System prompt
 
 Paste into the chat system prompt (upper-right controls):
 
 ```
-You have access to a Neo4j citation-network demo. Use these tools when the user asks about the citation graph, papers, authors, or research:
+You have access to a Neo4j citation-network demo. When the user asks about the citation graph, papers, authors, or research, use the neo4j_execute_cypher tool.
 
-- neo4j_most_cited — when they ask for most cited papers, top papers, influential papers, or citation rankings.
-- neo4j_citation_chain — when they ask about citation chains, papers citing other papers, or how citations flow.
-- neo4j_coauthorship — when they ask about co-authors, collaborators, who wrote papers together, or collaboration networks.
-- neo4j_research_influence — when they ask who influenced whom, research impact, or influence across topics.
-- neo4j_shortest_path — when they ask how two papers are connected or the path between "Citation Analysis with ML" and "PageRank".
-- neo4j_topic_clusters — when they ask which topics appear together, topic co-occurrence, or papers spanning multiple topics.
+IMPORTANT: When calling neo4j_execute_cypher, you MUST pass the query as a parameter named "query". The tool requires a "query" parameter with the Cypher query string. You can optionally pass a "params" parameter for query parameters.
 
-Call the relevant tool instead of guessing; the demo has real data after the user runs "make seed-db".
+Example correct usage:
+- User asks: "Find all papers by Alice Chen"
+- You call: neo4j_execute_cypher(query="MATCH (a:Author {name: 'Alice Chen'})-[:AUTHORED]->(p:Paper) RETURN p.title, p.year")
 
-Call each Neo4j tool with an empty object {} or omit parameters. Do not add topic, filter, or any other parameters — these tools accept no such inputs.
+The query must be read-only (MATCH, RETURN, etc.) - write operations are blocked for safety.
+
+Graph schema:
+- Nodes: Paper (properties: title, year, citations), Author (properties: name, affiliation), Topic (properties: name)
+- Relationships: CITES (Paper -> Paper), AUTHORED (Author -> Paper), ABOUT (Paper -> Topic)
 ```
 
-## Tool list
+## Tool
 
 | Tool | Description |
 |------|-------------|
-| `neo4j_most_cited` | Most cited papers (by citation count) |
-| `neo4j_citation_chain` | Citation chains (papers citing papers citing papers) |
-| `neo4j_coauthorship` | Co-authorship / collaboration network |
-| `neo4j_research_influence` | Who influenced whom across topics |
-| `neo4j_shortest_path` | Shortest path between two papers |
-| `neo4j_topic_clusters` | Topic co-occurrence (which topics appear together) |
+| `neo4j_execute_cypher` | Execute custom Cypher queries (read-only, validated for safety) |
+
+The `neo4j_execute_cypher` tool allows the LLM to generate and execute custom Cypher queries based on user requests.
+
+**Usage:**
+- The LLM generates a Cypher query from the user's natural language request
+- The tool validates the query for safety (blocks DELETE, DROP, CREATE, MERGE, SET operations)
+- Only read-only queries are allowed (MATCH, RETURN, WITH, WHERE, ORDER BY, LIMIT, etc.)
+- Results are returned in a formatted table
+
+**Example:**
+- User: "Find all papers written by Alice Chen"
+- LLM generates: `MATCH (a:Author {name: 'Alice Chen'})-[:AUTHORED]->(p:Paper) RETURN p.title, p.year`
+- Tool executes and returns formatted results
+
+**Safety:**
+- All queries are validated before execution
+- Dangerous operations (DELETE, DROP, CREATE, MERGE, SET, REMOVE) are blocked
+- Only read-only operations are permitted
 
 ## Neo4j Browser (local only)
 
 Inspect the graph at `http://localhost:7474`. Sign in with user `neo4j` and `NEO4J_PASSWORD` (default `password123`).
 
-## Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEO4J_URI` | `bolt://neo4j:7687` | Bolt URI. MCP server and seed script (via `make seed-db`) use hostname `neo4j` inside the stack. |
-| `NEO4J_USER` | `neo4j` | Neo4j user. |
-| `NEO4J_PASSWORD` | `password123` | Neo4j password. Set in `.env` as `NEO4J_PASSWORD` for production. |
-
-The MCP server and the seed run get these from docker-compose env. `make seed-db` passes `NEO4J_URI=bolt://neo4j:7687`, `NEO4J_USER`, and `NEO4J_PASSWORD` into the mcp-server container when it runs the seed script.
+**Environment:** Neo4j connection uses `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD`. See [env.example](../env.example); defaults are fine for local dev. For production, set `NEO4J_PASSWORD` (and optionally the others) in `.env`.

@@ -3,7 +3,7 @@
 # Deploy branch (defaults to main)
 BRANCH ?= main
 
-.PHONY: dev dev-down prod prod-down seed-db deploy clean help
+.PHONY: dev dev-down prod prod-down seed-db deploy clean logs restart-mcp help
 
 dev: ## Start local development (http://localhost:3000)
 	docker-compose up -d
@@ -26,6 +26,16 @@ seed-db: ## Seed the Neo4j citation demo (run after make dev; runs script in mcp
 		-e NEO4J_PASSWORD=$${NEO4J_PASSWORD:-password123} \
 		mcp-server python neo4j_citation_demo.py
 
+logs: ## View MCP server logs (usage: make logs or make logs SERVICE=mcp-server)
+	@if [ -z "$(SERVICE)" ]; then \
+		docker-compose logs -f mcp-server; \
+	else \
+		docker-compose logs -f $(SERVICE); \
+	fi
+
+restart-mcp: ## Restart the MCP server container (e.g. after code changes)
+	docker-compose restart mcp-server
+
 deploy: ## Deploy to EC2 (usage: make deploy BRANCH=main)
 	./scripts/deploy.sh $(BRANCH)
 
@@ -40,6 +50,8 @@ help: ## Show this help message
 	@echo "    dev             Start local development (http://localhost:3000)"
 	@echo "    dev-down        Stop local development"
 	@echo "    seed-db         Seed the Neo4j citation demo (run after make dev)"
+	@echo "    logs            View MCP server logs (make logs or make logs SERVICE=name)"
+	@echo "    restart-mcp     Restart the MCP server container"
 	@echo ""
 	@echo "  Production:"
 	@echo "    prod            Start production services (with Caddy reverse proxy)"

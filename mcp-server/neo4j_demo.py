@@ -1,10 +1,14 @@
-"""Neo4j citation-network demo: driver and six query helpers for MCP tools."""
+"""Neo4j citation-network demo: driver and execute_cypher_query for MCP tools."""
 
+import logging
 import os
+import re
 from typing import Any
 
 from neo4j import Driver, GraphDatabase
 from neo4j.exceptions import DriverError, Neo4jError
+
+logger = logging.getLogger(__name__)
 
 _NEO4J_DRIVER: list[Driver | None] = [None]
 
@@ -30,141 +34,121 @@ def get_driver() -> Driver | None:
 
 
 def _run_query(driver: Driver, cypher: str, **params: Any) -> list[dict[str, Any]]:
+    """Execute a Cypher query and return results as a list of dictionaries."""
     with driver.session() as session:
         result = session.run(cypher, params)
-        return [dict(r) for r in result]
+        # Consume the result while session is still open
+        records = list(result)
+        return [dict(record) for record in records]
 
 
-def query_most_cited(driver: Driver) -> str:
-    """Find most influential papers."""
-    try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH (p:Paper)
-            RETURN p.title as title, p.year as year, p.citations as citations
-            ORDER BY p.citations DESC
-            LIMIT 5
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["MOST CITED PAPERS:", "-" * 50]
-    for r in rows:
-        out.append(f"  [{r['citations']} cites] {r['title']} ({r['year']})")
-    return "\n".join(out)
+def _validate_cypher_query(query: str) -> tuple[bool, str]:
+    """
+    Validate a Cypher query for safety.
 
+    Returns:
+        (is_valid, error_message) - If is_valid is False, error_message explains why.
+    """
+    if not query or not query.strip():
+        return False, "Query cannot be empty"
 
-def query_citation_chain(driver: Driver) -> str:
-    """Follow citation chains (papers citing papers citing papers)."""
-    try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH path = (p1:Paper)-[:CITES*1..3]->(p2:Paper)
-            WHERE p1.year > p2.year
-            RETURN p1.title as citing,
-                   [n in nodes(path) | n.title] as chain,
-                   length(path) as depth
-            ORDER BY depth DESC
-            LIMIT 5
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["CITATION CHAINS (papers citing papers citing papers):", "-" * 50]
-    for r in rows:
-        chain = " → ".join(r["chain"])
-        out.append(f"  Depth {r['depth']}: {chain}")
-    return "\n".join(out)
+    # Normalize query for checking (uppercase, remove comments)
+    normalized = re.sub(r"//.*?$", "", query, flags=re.MULTILINE)  # Remove single-line comments
+    normalized = re.sub(r"/\*.*?\*/", "", normalized, flags=re.DOTALL)  # Remove multi-line comments
+    normalized = normalized.upper()
 
+    # Dangerous keywords that should be blocked
+    dangerous_keywords = [
+        "DELETE",
+        "DROP",
+        "DETACH",
+        "REMOVE",
+    ]
 
-def query_coauthorship(driver: Driver) -> str:
-    """Find collaboration networks (co-authorship)."""
-    try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH (a1:Author)-[:AUTHORED]->(p:Paper)<-[:AUTHORED]-(a2:Author)
-            WHERE a1.name < a2.name
-            RETURN a1.name as author1, a2.name as author2,
-                   collect(p.title) as papers
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["CO-AUTHORSHIP NETWORK:", "-" * 50]
-    for r in rows:
-        out.append(f"  {r['author1']} ↔ {r['author2']}")
-        for paper in r["papers"]:
-            out.append(f"      └─ {paper}")
-    return "\n".join(out)
-
-
-def query_research_influence(driver: Driver) -> str:
-    """Who influenced whom across topics (Author → Paper → Citations → Topics)."""
-    try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH (a:Author)-[:AUTHORED]->(p:Paper)<-[:CITES]-(citing:Paper)-[:ABOUT]->(t:Topic)
-            RETURN a.name as author,
-                   count(DISTINCT citing) as influenced_papers,
-                   collect(DISTINCT t.name) as topics_influenced
-            ORDER BY influenced_papers DESC
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["RESEARCH INFLUENCE (Author → Paper → Citations → Topics):", "-" * 50]
-    for r in rows:
-        topics = ", ".join(r["topics_influenced"])
-        out.append(f"  {r['author']}: influenced {r['influenced_papers']} papers")
-        out.append(f"      Topics: {topics}")
-    return "\n".join(out)
-
-
-def query_shortest_path(driver: Driver) -> str:
-    """How are two papers connected? Shortest path between papers."""
-    try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH path = shortestPath(
-                (p1:Paper {title: 'Citation Analysis with ML'})
-                -[*]-(p2:Paper {title: 'PageRank: The Original Algorithm'})
+    # Check for dangerous keywords
+    for keyword in dangerous_keywords:
+        # Use word boundaries to avoid false positives
+        pattern = r"\b" + re.escape(keyword) + r"\b"
+        if re.search(pattern, normalized):
+            return (
+                False,
+                f"Query contains dangerous operation: {keyword}. Only read-only queries are allowed.",
             )
-            RETURN [n in nodes(path) |
-                CASE WHEN n:Paper THEN n.title
-                     WHEN n:Author THEN n.name
-                     WHEN n:Topic THEN n.name
-                END] as path
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["SHORTEST PATH BETWEEN PAPERS:", "-" * 50]
-    for r in rows:
-        out.append(f"  {' → '.join(r['path'])}")
+
+    # Block CREATE/MERGE/SET operations
+    write_keywords = ["CREATE", "MERGE", "SET"]
+    for keyword in write_keywords:
+        pattern = r"\b" + re.escape(keyword) + r"\b"
+        if re.search(pattern, normalized):
+            return (
+                False,
+                f"Query contains write operation: {keyword}. Only read-only queries (MATCH, RETURN, etc.) are allowed.",
+            )
+
+    # Ensure query contains at least one safe read operation
+    safe_keywords = ["MATCH", "RETURN", "WITH", "UNWIND", "CALL"]
+    has_safe_operation = any(
+        re.search(r"\b" + re.escape(kw) + r"\b", normalized) for kw in safe_keywords
+    )
+
+    if not has_safe_operation:
+        return False, "Query must contain at least one read operation (MATCH, RETURN, WITH, etc.)"
+
+    return True, ""
+
+
+_MAX_VALUE_DISPLAY_LEN = 30
+
+
+def _format_query_results(rows: list[dict[str, Any]]) -> str:
+    """Format query rows as a table-like string."""
+    all_keys = sorted(set().union(*(row.keys() for row in rows)))
+    out = ["QUERY RESULTS:", "-" * 50]
+    header = " | ".join(f"{k:20}" for k in all_keys)
+    out.extend([header, "-" * len(header)])
+    for row in rows:
+        values = []
+        for k in all_keys:
+            val = row.get(k)
+            if val is None:
+                val_str = "null"
+            elif isinstance(val, (list, tuple)):
+                val_str = f"[{', '.join(str(v) for v in val)}]"
+            elif isinstance(val, dict):
+                val_str = str(val)
+            else:
+                val_str = str(val)
+            if len(val_str) > _MAX_VALUE_DISPLAY_LEN:
+                val_str = val_str[: _MAX_VALUE_DISPLAY_LEN - 3] + "..."
+            values.append(f"{val_str:20}")
+        out.append(" | ".join(values))
+    out.append(f"\nTotal rows: {len(rows)}")
     return "\n".join(out)
 
 
-def query_topic_clusters(driver: Driver) -> str:
-    """Which topics are researched together? Topic co-occurrence."""
+def execute_cypher_query(driver: Driver, query: str, params: dict[str, Any] | None = None) -> str:
+    """
+    Execute a Cypher query with validation.
+
+    Args:
+        driver: Neo4j driver instance
+        query: Cypher query string
+        params: Optional query parameters dictionary
+
+    Returns:
+        Formatted result string or error message
+    """
+    is_valid, error_msg = _validate_cypher_query(query)
+    if not is_valid:
+        logger.warning("Cypher validation failed: %s", error_msg)
+        return f"Query validation failed: {error_msg}"
+
     try:
-        rows = _run_query(
-            driver,
-            """
-            MATCH (t1:Topic)<-[:ABOUT]-(p:Paper)-[:ABOUT]->(t2:Topic)
-            WHERE t1.name < t2.name
-            RETURN t1.name as topic1, t2.name as topic2,
-                   count(p) as shared_papers
-            ORDER BY shared_papers DESC
-            """,
-        )
-    except (Neo4jError, DriverError, OSError) as e:
-        return f"Neo4j error: {e}. Run the citation demo seed script first: scripts/neo4j_citation_demo.py"
-    out = ["TOPIC CO-OCCURRENCE:", "-" * 50]
-    for r in rows:
-        out.append(f"  {r['topic1']} ∩ {r['topic2']}: {r['shared_papers']} papers")
-    return "\n".join(out)
+        rows = _run_query(driver, query, **params) if params else _run_query(driver, query)
+    except Exception as e:
+        logger.error("Cypher execution failed: %s", e, exc_info=True)
+        return f"Error executing query: {type(e).__name__}: {e}"
+
+    if not rows:
+        return "Query executed successfully but returned no results."
+    return _format_query_results(rows)

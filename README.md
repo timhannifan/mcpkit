@@ -29,7 +29,7 @@ A ready-to-run stack that pairs OpenWebUI with a FastMCP server: all tools query
 
 3. **Seed the graph**
 
-   Run `make seed-db` once to seed the Neo4j citation graph (papers, authors, topics). The MCP tools query this graph. See [docs/NEO4J_DEMO.md](docs/NEO4J_DEMO.md) for tool list and system prompt.
+   Run `make seed-db` once to seed the Neo4j citation graph (papers, authors, topics).
 
 4. **Access OpenWebUI**
 
@@ -75,10 +75,27 @@ A ready-to-run stack that pairs OpenWebUI with a FastMCP server: all tools query
 
    For production deployment, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-7. **Start Querying**
+7. **Paste the Neo4j system prompt**
 
-   - In a chat, click the **Integrations** icon (below the text input area), find your tools and turn them on
-   - Start a new chat, select a model, and ask questions about the citation graph (e.g. “Show most cited papers”, “Show co-authorship network”)
+   So the model uses the citation-graph tool correctly, open the chat **system prompt** (menu in the chat → system prompt / custom instructions) and paste:
+
+   ```
+   You have access to a Neo4j citation-network demo. When the user asks about the citation graph, papers, authors, or research, use the neo4j_execute_cypher tool.
+
+   IMPORTANT: When calling neo4j_execute_cypher, you MUST pass the query as a parameter named "query". The tool requires a "query" parameter with the Cypher query string. You can optionally pass a "params" parameter for query parameters.
+
+   Example: User asks "Find all papers by Alice Chen" → call neo4j_execute_cypher(query="MATCH (a:Author {name: 'Alice Chen'})-[:AUTHORED]->(p:Paper) RETURN p.title, p.year")
+
+   The query must be read-only (MATCH, RETURN, etc.). Graph schema: Paper, Author, Topic; relationships CITES, AUTHORED, ABOUT.
+   ```
+
+8. **Start querying**
+
+   In a chat with tools enabled, ask about the citation graph — e.g. “Find papers by Alice Chen”, “Which papers cite both Modern Graph Neural Networks and PageRank: The Original Algorithm?”
+
+## Neo4j Citation Demo
+
+The MCP server exposes **`neo4j_execute_cypher`**: the model turns natural language into Cypher and runs it against the citation graph. For schema, more examples, and Neo4j Browser, see [docs/NEO4J_DEMO.md](docs/NEO4J_DEMO.md).
 
 ## Available Commands
 
@@ -101,6 +118,7 @@ make clean        # Clean up Docker images and containers
 
 ```
 mcpkit/
+├── LICENSE
 ├── docker-compose.yaml         # Base configuration
 ├── docker-compose.override.yaml # Local dev overrides
 ├── docker-compose.prod.yaml    # Production with Caddy
@@ -125,16 +143,6 @@ mcpkit/
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full production deployment instructions.
 
-## MCP Server Integration
+## License
 
-This project demonstrates how to integrate a FastMCP server with OpenWebUI and expose it as a REST API using mcpo (MCP-to-OpenAPI proxy).
-
-- **FastMCP Server** (`mcp-server`): Implements MCP tools using FastMCP 3.0 on port 8090; all tools query the Neo4j citation graph (six tools: most cited, citation chain, co-authorship, research influence, shortest path, topic clusters)
-- **mcpo Proxy** (`mcpo`): Exposes MCP tools as REST/OpenAPI endpoints on port 8000
-
-**Access:**
-- **MCP endpoint**: `http://localhost:8090/mcp` (direct MCP protocol)
-- **OpenAPI proxy**: `http://localhost:8000` (REST API with Swagger docs at `/docs`)
-- **Neo4j Browser** (local): `http://localhost:7474` to inspect the citation graph (after `make seed-db`)
-
-See [mcp-server/README.md](mcp-server/README.md) for extending the MCP server; see [docs/NEO4J_DEMO.md](docs/NEO4J_DEMO.md) for the Neo4j demo setup and tool list.
+[BSD 3-Clause](LICENSE) — Copyright 2026, Tim Hannifan.
